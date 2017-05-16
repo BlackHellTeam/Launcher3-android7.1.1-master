@@ -45,6 +45,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
+import android.os.Message;
 import android.os.Parcelable;
 import android.util.AttributeSet;
 import android.util.Log;
@@ -55,6 +56,8 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.accessibility.AccessibilityManager;
+import android.view.animation.AccelerateDecelerateInterpolator;
+import android.view.animation.AccelerateInterpolator;
 import android.view.animation.DecelerateInterpolator;
 import android.view.animation.Interpolator;
 import android.widget.TextView;
@@ -70,10 +73,12 @@ import com.android.launcher3.accessibility.OverviewScreenAccessibilityDelegate;
 import com.android.launcher3.compat.UserHandleCompat;
 import com.android.launcher3.util.LongArrayMap;
 import com.android.launcher3.util.Thunk;
+import com.android.launcher3.util.MxHandler;
 import com.android.launcher3.util.WallpaperUtils;
 import com.android.launcher3.widget.PendingAddShortcutInfo;
 import com.android.launcher3.widget.PendingAddWidgetInfo;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -1675,10 +1680,442 @@ public class Workspace extends PagedView
 
     @Override
     protected void screenScrolled(int screenCenter) {
+        startScrollWithAnim(screenCenter);
         updatePageAlphaValues(screenCenter);
         updateStateForCustomContent(screenCenter);
         enableHwLayersOnVisiblePages();
     }
+
+    // add:mx---特效----------start----
+    private boolean mOverScrollTransformsSet;
+    private float mLastOverScrollPivotX;
+    // If true, modify alpha of neighboring pages as user scrolls left/right
+    protected boolean mFadeInAdjacentScreens = false;
+
+    private void startScrollWithAnim(int screenCenter) {
+
+        if (mTransitionEffect == null) {
+            mTransitionEffect = new TransitionEffect(this);
+        }
+
+        //横向滑动的距离
+        int scrollX = getScrollX();
+        //如果循环滑动,从最后一屏向第一屏滑动时mOverScrollX > mMaxScrollX,非循环滑动则为false
+        boolean shouldOverScroll = (scrollX < 0 && (!hasCustomContent() || mIsRtl))
+                || (scrollX > mMaxScrollX && (!hasCustomContent() || !mIsRtl));
+
+        if (shouldOverScroll) {//false
+            final float leftBiasedPivot = 0.75f;
+            final float rightBiasedPivot = 0.25f;
+            final int lowerIndex = 0;
+            final int upperIndex = getChildCount() - 1;
+
+            final boolean isLeftPage = scrollX < 0;
+            int index = (!mIsRtl && isLeftPage) || (mIsRtl && !isLeftPage) ? lowerIndex
+                    : upperIndex;
+            float pivotX = isLeftPage ? rightBiasedPivot : leftBiasedPivot;
+
+            CellLayout cl = (CellLayout) getChildAt(index);
+            float scrollProgress = getScrollProgress(screenCenter, cl, index);
+            //最边界滑动是出现白色背景
+            cl.setOverScrollAmount(Math.abs(scrollProgress), isLeftPage);
+            float translationX = -WORKSPACE_OVER_SCROLL_ROTATION * scrollProgress;
+            cl.setTranslationX(translationX);
+
+            if (!mOverScrollTransformsSet
+                    || Float.compare(mLastOverScrollPivotX, pivotX) != 0) {
+                mOverScrollTransformsSet = true;
+                mLastOverScrollPivotX = pivotX;
+                cl.setPivotX(cl.getMeasuredWidth() * pivotX);
+                cl.setPivotY(cl.getMeasuredHeight() * 0.5f);
+                cl.setOverScrollTransformsDirty(true);
+            }
+        } else {
+            if (mOverScrollTransformsSet) {//false
+                mOverScrollTransformsSet = false;
+                ((CellLayout) getChildAt(0)).resetOverscrollTransforms();
+                ((CellLayout) getChildAt(getChildCount() - 1)).resetOverscrollTransforms();
+            }
+            mTransitionEffect.resetTransitionEffect();
+
+            // Apply transition effect and adjacent screen fade if enabled
+            SharedPreferences sp = getContext().getSharedPreferences(
+                    "com.android.launcher3.prefs", Context.MODE_PRIVATE);
+            int screenEffectNum = 3;
+//            int screenEffectNum = sp.getInt("screenEffect", 1);
+            final int N = getChildCount();
+            for (int i = 0; i < N; i++) {
+                View v = getPageAt(i);
+                if (v != null) {
+                    float scrollProgress = getScrollProgress(screenCenter, v, i);
+                    switch (screenEffectNum) {
+                        case TransitionEffect.TRANSITION_EFFECT_NONE:
+                            mTransitionEffect.screenScrollByTransitionEffectStandard(v, scrollProgress);
+                            break;
+                        case TransitionEffect.TRANSITION_EFFECT_ZOOM_IN:
+                            mTransitionEffect.screenScrollByTransitionEffectZoom(true, v, scrollProgress);
+                            break;
+                        case TransitionEffect.TRANSITION_EFFECT_ZOOM_OUT:
+                            mTransitionEffect.screenScrollByTransitionEffectZoom(false, v, scrollProgress);
+                            break;
+                        case TransitionEffect.TRANSITION_EFFECT_ROTATE_DOWN:
+                            mTransitionEffect.screenScrollByTransitionEffectRotate(false, v, scrollProgress);
+                            break;
+                        case TransitionEffect.TRANSITION_EFFECT_ROTATE_UP:
+                            mTransitionEffect.screenScrollByTransitionEffectRotate(true, v, scrollProgress);
+                            break;
+                        case TransitionEffect.TRANSITION_EFFECT_CUBE_IN:
+                            mTransitionEffect.screenScrollByTransitionEffectCube(true, v, scrollProgress);
+                            break;
+                        case TransitionEffect.TRANSITION_EFFECT_CUBE_OUT:
+                            mTransitionEffect.screenScrollByTransitionEffectCube(false, v, scrollProgress);
+                            break;
+                        case TransitionEffect.TRANSITION_EFFECT_STACK:
+                            mTransitionEffect.screenScrollByTransitionEffectStack(v, scrollProgress);
+                            break;
+                        case TransitionEffect.TRANSITION_EFFECT_ACCORDION:
+                            mTransitionEffect.screenScrollByTransitionEffectAccordion(v, scrollProgress);
+                            break;
+                        case TransitionEffect.TRANSITION_EFFECT_FLIP:// 有问题
+                            mTransitionEffect.screenScrollByTransitionEffectFlip(v, scrollProgress);
+                            break;
+                        case TransitionEffect.TRANSITION_EFFECT_CYLINDER_IN:
+                            mTransitionEffect.screenScrollByTransitionEffectCylinder(true, v, scrollProgress);
+                            break;
+                        case TransitionEffect.TRANSITION_EFFECT_CYLINDER_OUT:
+                            mTransitionEffect.screenScrollByTransitionEffectCylinder(false, v, scrollProgress);
+                            break;
+                        case TransitionEffect.TRANSITION_EFFECT_CROSS_FADE:
+                            mTransitionEffect.screenScrollByTransitionEffectCrossFade(v, scrollProgress);
+                            break;
+                        case TransitionEffect.TRANSITION_EFFECT_OVERVIEW:// 效果不好
+                            mTransitionEffect.screenScrollByTransitionEffectCrossOverview(v, scrollProgress);
+                            break;
+                        case TransitionEffect.TRANSITION_EFFECT_TWIST_VIEW:
+                            mTransitionEffect.screenScrollByTransitionEffectCrossTwistView(v, scrollProgress);
+                            break;
+                        case TransitionEffect.TRANSITION_EFFECT_OVERVIEW_SCALE:
+                            mTransitionEffect.screenScrollByTransitionEffectOverviewScale(v, scrollProgress);
+                        default:
+                            mTransitionEffect.screenScrollByTransitionEffectStandard(v, scrollProgress);
+                            break;
+                    }
+                }
+            }
+        }
+    }
+
+    public void previewTransitionEffect() {
+        mTransitionEffectHandler.sendMessage(mTransitionEffectHandler.obtainMessage());
+    }
+
+    private TransitionEffectHandler mTransitionEffectHandler;
+
+    private static class TransitionEffectHandler extends MxHandler<Workspace> {
+
+        public TransitionEffectHandler(Workspace workspace) {
+            super(workspace);
+        }
+
+        @Override
+        protected void handleMessage(Message msg, WeakReference<Workspace> weak) {
+
+        }
+
+
+    }
+
+    protected static final float TRANSITION_SCREEN_ROTATION = 35f;
+    protected static float CAMERA_DISTANCE = 6500;
+    protected static final float TRANSITION_SCALE_FACTOR = 0.5f;
+
+    // Y rotation to apply to the workspace screens
+    private static final float WORKSPACE_OVER_SCROLL_ROTATION = 150f;
+
+    private TransitionEffect mTransitionEffect;
+
+    public TransitionEffect getTransitionEffect() {
+        return mTransitionEffect;
+    }
+
+    private class TransitionEffect {
+        public static final int TRANSITION_EFFECT_NONE = 0;
+        public static final int TRANSITION_EFFECT_ZOOM_IN = 1;
+        public static final int TRANSITION_EFFECT_ZOOM_OUT = 2;
+        public static final int TRANSITION_EFFECT_ROTATE_UP = 3;
+        public static final int TRANSITION_EFFECT_ROTATE_DOWN = 4;
+        public static final int TRANSITION_EFFECT_CUBE_IN = 5;
+        public static final int TRANSITION_EFFECT_CUBE_OUT = 6;
+        public static final int TRANSITION_EFFECT_STACK = 7;
+        public static final int TRANSITION_EFFECT_ACCORDION = 8;
+        public static final int TRANSITION_EFFECT_FLIP = 9;
+        public static final int TRANSITION_EFFECT_CYLINDER_IN = 10;
+        public static final int TRANSITION_EFFECT_CYLINDER_OUT = 11;
+        public static final int TRANSITION_EFFECT_CROSS_FADE = 12;
+        public static final int TRANSITION_EFFECT_OVERVIEW = 13;
+        public static final int TRANSITION_EFFECT_TWIST_VIEW = 14;
+        public static final int TRANSITION_EFFECT_OVERVIEW_SCALE = 15;
+
+        protected final Workspace mWorkspace;
+        AccelerateDecelerateInterpolator mScaleInterpolator;
+        ZInterpolator mZInterpolator;
+        DecelerateInterpolator mLeftScreenAlphaInterpolator;
+        AccelerateInterpolator mAlphaInterpolator;
+        private float mCameraDistance;
+
+        public TransitionEffect(Workspace workspace) {
+            mWorkspace = workspace;
+            mCameraDistance = mDensity * CAMERA_DISTANCE;
+        }
+
+        private void resetTransitionEffect() {
+            final int N = getChildCount();
+            for (int i = 0; i < N; i++) {
+                View v = getPageAt(i);
+                if (v != null) {
+                    v.setPivotX(v.getMeasuredWidth() * 0.5f);
+                    v.setPivotY(v.getMeasuredHeight() * 0.5f);
+                    v.setRotation(0);
+                    v.setRotationX(0);
+                    v.setRotationY(0);
+                    v.setScaleX(1f);
+                    v.setScaleY(1f);
+                    v.setTranslationX(0f);
+                    v.setTranslationY(0f);
+                    v.setVisibility(VISIBLE);
+                    v.setAlpha(1f);
+                }
+            }
+        }
+
+        private void screenScrollByTransitionEffectStandard(View v, float scrollProgress) {
+            if (mFadeInAdjacentScreens) {
+                float alpha = 1 - Math.abs(scrollProgress);
+                ((CellLayout) v).getShortcutsAndWidgets().setAlpha(alpha);
+            }
+        }
+
+        public void screenScrollByTransitionEffectZoom(boolean in, View v, float scrollProgress) {
+            float scale = 1.0f + (in ? -0.8f : 0.4f) * Math.abs(scrollProgress);
+            // Extra translation to account for the increase in size
+            if (!in) {
+                float translationX = v.getMeasuredWidth() * 0.2f * (-scrollProgress);
+                v.setTranslationX(translationX);
+            }
+
+            v.setScaleX(scale);
+            v.setScaleY(scale);
+        }
+
+        public void screenScrollByTransitionEffectRotate(boolean up, View v, float scrollProgress) {
+            float rotation =
+                    (up ? TRANSITION_SCREEN_ROTATION : -TRANSITION_SCREEN_ROTATION) * scrollProgress;
+
+            float translationX = v.getMeasuredWidth() * scrollProgress;
+
+            float rotatePoint =
+                    (v.getMeasuredWidth() * 0.5f) /
+                            (float) Math.tan(Math.toRadians((double) (TRANSITION_SCREEN_ROTATION * 0.5f)));
+
+            v.setPivotX(v.getMeasuredWidth() * 0.5f);
+            if (up) {
+                v.setPivotY(-rotatePoint);
+            } else {
+                v.setPivotY(v.getMeasuredHeight() + rotatePoint);
+            }
+            v.setRotation(rotation);
+            v.setTranslationX(translationX);
+        }
+
+        public void screenScrollByTransitionEffectCube(boolean in, View v, float scrollProgress) {
+            float rotation = (in ? 90.0f : -90.0f) * scrollProgress;
+            v.setCameraDistance(mCameraDistance);
+            v.setPivotX(scrollProgress < 0 ? 0 : v.getMeasuredWidth());
+            v.setPivotY(v.getMeasuredHeight() * 0.5f);
+            v.setRotationY(rotation);
+        }
+
+        public void screenScrollByTransitionEffectStack(View v, float scrollProgress) {
+            if (mZInterpolator == null) {
+                mZInterpolator = new ZInterpolator(0.5f);
+            }
+            if (mLeftScreenAlphaInterpolator == null) {
+                mLeftScreenAlphaInterpolator = new DecelerateInterpolator(4);
+            }
+            if (mAlphaInterpolator == null) {
+                mAlphaInterpolator = new AccelerateInterpolator(0.9f);
+            }
+            final boolean isRtl = Utilities.isRtl(v.getResources());
+            float interpolatedProgress;
+            float translationX;
+            float maxScrollProgress = Math.max(0, scrollProgress);
+            float minScrollProgress = Math.min(0, scrollProgress);
+
+            if (isRtl) {
+                translationX = maxScrollProgress * v.getMeasuredWidth();
+                interpolatedProgress = mZInterpolator.getInterpolation(Math.abs(maxScrollProgress));
+            } else {
+                translationX = minScrollProgress * v.getMeasuredWidth();
+                interpolatedProgress = mZInterpolator.getInterpolation(Math.abs(minScrollProgress));
+            }
+            float scale = (1 - interpolatedProgress) +
+                    interpolatedProgress * TRANSITION_SCALE_FACTOR;
+
+            float alpha;
+            if (isRtl && (scrollProgress > 0)) {
+                alpha = mAlphaInterpolator.getInterpolation(1 - Math.abs(maxScrollProgress));
+            } else if (!isRtl && (scrollProgress < 0)) {
+                alpha = mAlphaInterpolator.getInterpolation(1 - Math.abs(scrollProgress));
+            } else {
+                //  On large screens we need to fade the page as it nears its leftmost position
+                alpha = mLeftScreenAlphaInterpolator.getInterpolation(1 - scrollProgress);
+            }
+
+            v.setTranslationX(translationX);
+            v.setScaleX(scale);
+            v.setScaleY(scale);
+            if (v instanceof CellLayout) {
+                ((CellLayout) v).getShortcutsAndWidgets().setAlpha(alpha);
+            } else {
+                v.setAlpha(alpha);
+            }
+
+            // If the view has 0 alpha, we set it to be invisible so as to prevent
+            // it from accepting touches
+            if (alpha == 0) {
+                v.setVisibility(INVISIBLE);
+            } else if (v.getVisibility() != VISIBLE) {
+                v.setVisibility(VISIBLE);
+            }
+
+        }
+
+        public void screenScrollByTransitionEffectAccordion(View v, float scrollProgress) {
+            float scale = 1.0f - Math.abs(scrollProgress);
+            v.setScaleX(scale);
+            v.setPivotX(scrollProgress < 0 ? 0 : v.getMeasuredWidth());
+            v.setPivotY(v.getMeasuredHeight() / 2f);
+        }
+
+        public void screenScrollByTransitionEffectFlip(View v, float scrollProgress) {
+//            float rotation = -180.0f * scrollProgress;
+//            if (scrollProgress != 0) {
+//                mWorkspace.mLauncher.changeBackgroundAlpha(1.0f);
+//            }
+//
+//            if (scrollProgress >= -0.5f && scrollProgress <= 0.5f) {
+//                v.setCameraDistance(mCameraDistance);
+//                v.setTranslationX(v.getMeasuredWidth() * scrollProgress);
+//                v.setPivotX(v.getMeasuredWidth() * 0.5f);
+//                v.setRotationY(rotation);
+//                if (v.getVisibility() != VISIBLE) {
+//                    v.setVisibility(VISIBLE);
+//                }
+//            } else {
+//                v.setVisibility(INVISIBLE);
+//            }
+
+            float rotation = -180.0f * scrollProgress;
+            if (scrollProgress == 0) {
+                //Flip特效反向切换桌面时出现蒙版
+                Folder openFolder = getOpenFolder();
+                if (openFolder == null) {
+                    mLauncher.changeBackgroundAlpha(1.0f);
+                }
+            }
+            if (scrollProgress >= -0.5f && scrollProgress <= 0.5f) {
+                v.setCameraDistance(mDensity * mCameraDistance);
+                v.setTranslationX(v.getMeasuredWidth() * scrollProgress);
+                v.setPivotX(v.getMeasuredWidth() * 0.5f);
+                v.setRotationY(rotation);
+                if (v.getVisibility() != VISIBLE) {
+                    v.setVisibility(VISIBLE);
+                }
+            } else {
+                v.setVisibility(INVISIBLE);
+            }
+
+
+//            float rotation = -180.0f * Math.max(-1f, Math.min(1f, scrollProgress));
+//
+//            v.setCameraDistance(mWorkspace.mDensity * Workspace.CAMERA_DISTANCE);
+//            v.setPivotX(v.getMeasuredWidth() * 0.5f);
+//            v.setPivotY(v.getMeasuredHeight() * 0.5f);
+//            v.setRotationY(rotation);
+//
+//            if (scrollProgress >= -0.5f && scrollProgress <= 0.5f) {
+//                v.setTranslationX(v.getMeasuredWidth() * scrollProgress);
+//            } else {
+//                v.setTranslationX(0f);
+//            }
+        }
+
+        /**
+         * 柱面切换效果，不是立方切换效果
+         *
+         * @param in             向内或者向外
+         * @param v              CellLayout
+         * @param scrollProgress 滑动进度
+         */
+        public void screenScrollByTransitionEffectCylinder(boolean in, View v, float scrollProgress) {
+            float rotation = (in ? TRANSITION_SCREEN_ROTATION : -TRANSITION_SCREEN_ROTATION) * scrollProgress;
+            v.setCameraDistance(v.getMeasuredWidth() * 4);
+            v.setPivotX((scrollProgress + 1) * v.getMeasuredWidth() * 0.5f);
+            v.setPivotY(v.getMeasuredHeight() * 0.5f);
+            v.setRotationY(rotation);
+        }
+
+        public void screenScrollByTransitionEffectCrossFade(View v, float scrollProgress) {
+            float alpha = 1 - Math.abs(scrollProgress);
+            v.setPivotX(v.getMeasuredWidth() * 0.5f);
+            v.setPivotY(v.getMeasuredHeight() * 0.5f);
+            v.setAlpha(alpha);
+        }
+
+        public void screenScrollByTransitionEffectCrossOverview(View v, float scrollProgress) {
+            if (mScaleInterpolator == null) {
+                mScaleInterpolator = new AccelerateDecelerateInterpolator();
+            }
+            float scale = 1.0f - 0.1f *
+                    mScaleInterpolator.getInterpolation(Math.min(0.3f, Math.abs(scrollProgress)) / 0.3f);
+            v.setPivotX(scrollProgress < 0 ? 0 : v.getMeasuredWidth());
+            v.setPivotY(v.getMeasuredHeight() * 0.5f);
+            v.setScaleX(scale);
+            v.setScaleY(scale);
+            v.setAlpha(scale);
+        }
+
+        public void screenScrollByTransitionEffectCrossTwistView(View v, float scrollProgress) {
+
+        }
+
+        public void screenScrollByTransitionEffectOverviewScale(View v, float scrollProgress) {
+            float scale = (scrollProgress >= 0 ? 1 - scrollProgress : 1 + scrollProgress);
+
+            v.setCameraDistance(mCameraDistance);
+            v.setTranslationX(v.getMeasuredWidth() * scrollProgress);
+            v.setPivotX(v.getMeasuredWidth() * 0.5f);
+            v.setPivotY(v.getMeasuredHeight() * 0.5f);
+            if (scale == 0.0f) {
+                v.setVisibility(INVISIBLE);
+            } else if (v.getVisibility() == INVISIBLE) {
+                v.setVisibility(VISIBLE);
+            }
+            v.setScaleX(scale);
+            v.setScaleY(scale);
+            if (mFadeInAdjacentScreens) {
+                setCellLayoutFadeAdjacent(v, scrollProgress);
+            }
+        }
+
+        private void setCellLayoutFadeAdjacent(View child, float scrollProgress) {
+            float alpha = 1 - Math.abs(scrollProgress);
+            ((CellLayout) child).getShortcutsAndWidgets().setAlpha(alpha);
+        }
+
+    }
+
+    // add:mx---特效----------end----
 
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();

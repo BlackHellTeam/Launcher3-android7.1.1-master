@@ -4776,6 +4776,22 @@ public class Launcher extends Activity
         return sCustomAppWidgets;
     }
 
+    public void changeBackgroundAlpha(float alpha) {
+        View currentPage = null;
+        if (mWorkspace != null) {
+            currentPage = mWorkspace.getPageAt(mWorkspace.getCurrentPage());
+        }
+        if (currentPage != null) {
+            currentPage.setAlpha(alpha);
+        }
+        if (mHotseat != null) {
+            mHotseat.setAlpha(alpha);
+        }
+//        if (mPageIndicators != null) {
+//            mPageIndicators.setAlpha(alpha);
+//        }
+    }
+
     public void dumpLogsToLocalData() {
         if (DEBUG_DUMP_LOG) {
             new AsyncTask<Void, Void, Void>() {

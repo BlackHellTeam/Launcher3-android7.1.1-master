@@ -2952,4 +2952,44 @@ public class CellLayout extends ViewGroup implements BubbleTextShadowHandler {
 
         return true;
     }
+
+    // add:mx----------start-------
+    private boolean mScrollingTransformsDirty = false;
+
+    private Drawable mOverScrollForegroundDrawable;
+    private Drawable mOverScrollLeft;
+    private Drawable mOverScrollRight;
+    private Rect mBackgroundRect;
+
+    private int mForegroundAlpha = 0;
+
+    public void resetOverscrollTransforms() {
+        if (mScrollingTransformsDirty) {
+
+            setOverScrollTransformsDirty(false);
+            setTranslationX(0);
+            setRotationY(0);
+            // It doesn't matter if we pass true or false here, the important thing is that we
+            // pass 0, which results in the overscroll drawable not being drawn any more.
+            setOverScrollAmount(0, false);
+            setPivotX(getMeasuredWidth() / 2);
+            setPivotY(getMeasuredHeight() / 2);
+        }
+    }
+
+    public void setOverScrollTransformsDirty(boolean dirty) {
+        mScrollingTransformsDirty = dirty;
+    }
+
+
+    public void setOverScrollAmount(float r, boolean left) {
+        if (left && mOverScrollForegroundDrawable != mOverScrollLeft) {
+            mOverScrollForegroundDrawable = mOverScrollLeft;
+        } else if (!left && mOverScrollForegroundDrawable != mOverScrollRight) {
+            mOverScrollForegroundDrawable = mOverScrollRight;
+        }
+
+        mForegroundAlpha = Math.round((r * 255));
+        invalidate();
+    }
 }
