@@ -219,9 +219,9 @@ public class WorkspaceStateTransitionAnimation {
         mOverviewTransitionTime = res.getInteger(R.integer.config_overviewTransitionTime);
         mOverlayTransitionTime = res.getInteger(R.integer.config_overlayTransitionTime);
         mSpringLoadedShrinkFactor =
-                res.getInteger(R.integer.config_workspaceSpringLoadShrinkPercentage) / 100f;
+                90/100f;
         mOverviewModeShrinkFactor =
-                res.getInteger(R.integer.config_workspaceOverviewShrinkPercentage) / 100f;
+                90/100f;
         mWorkspaceScrimAlpha = res.getInteger(R.integer.config_workspaceScrimAlpha) / 100f;
         mWorkspaceFadeInAdjacentScreens = grid.shouldFadeAdjacentWorkspaceScreens();
     }
@@ -300,9 +300,9 @@ public class WorkspaceStateTransitionAnimation {
 
         if (states.oldStateIsOverview) {
             mWorkspace.disableFreeScroll();
-        } else if (states.stateIsOverview) {
+        } /*else if (states.stateIsOverview) {
             mWorkspace.enableFreeScroll();
-        }
+        }*/
 
         if (!states.stateIsNormal) {
             if (states.stateIsSpringLoaded) {

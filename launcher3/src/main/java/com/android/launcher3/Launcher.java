@@ -106,12 +106,14 @@ import com.android.launcher3.compat.LauncherActivityInfoCompat;
 import com.android.launcher3.compat.LauncherAppsCompat;
 import com.android.launcher3.compat.UserHandleCompat;
 import com.android.launcher3.compat.UserManagerCompat;
+import com.android.launcher3.effect.EffectContainer;
 import com.android.launcher3.model.WidgetsModel;
 import com.android.launcher3.util.ComponentKey;
 import com.android.launcher3.util.LongArrayMap;
 import com.android.launcher3.util.Thunk;
 import com.android.launcher3.widget.PendingAddWidgetInfo;
 import com.android.launcher3.widget.WidgetHostViewLoader;
+import com.android.launcher3.widget.WidgetPageContainer;
 import com.android.launcher3.widget.WidgetsContainerView;
 
 import java.io.File;
@@ -128,7 +130,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
-
 /**
  * Default launcher application.
  */
@@ -215,7 +216,7 @@ public class Launcher extends Activity
     public static final String USER_HAS_MIGRATED = "launcher.user_migrated_from_old_data";
 
     /** The different states that Launcher can be in. */
-    enum State { NONE, WORKSPACE, APPS, APPS_SPRING_LOADED, WIDGETS, WIDGETS_SPRING_LOADED }
+    enum State { NONE, WORKSPACE, APPS, APPS_SPRING_LOADED,WIDGETS_CUSTOM, EFFECT, WIDGETS, WIDGETS_SPRING_LOADED }
 
     @Thunk State mState = State.WORKSPACE;
     @Thunk LauncherStateTransitionAnimation mStateTransitionAnimation;
@@ -262,6 +263,9 @@ public class Launcher extends Activity
 
     @Thunk Hotseat mHotseat;
     private ViewGroup mOverviewPanel;
+
+    private WidgetPageContainer mWidgetPager;
+    private EffectContainer mEffectPanel;
 
     private View mAllAppsButton;
     private View mWidgetsButton;
@@ -364,6 +368,7 @@ public class Launcher extends Activity
             Intent.ACTION_CALL };
     private static final int[] ACCESS_PERMISSION_HINT = new int[] {
             R.string.permission_call_phone };
+    private static final String PAGEVIEWANIMATION_TYPE = "launcher.pageview_animation_type";
 
     protected static HashMap<String, CustomAppWidget> sCustomAppWidgets =
             new HashMap<String, CustomAppWidget>();
@@ -474,6 +479,9 @@ public class Launcher extends Activity
         }
 
         setContentView(R.layout.launcher);
+
+        int type = mSharedPrefs.getInt(PAGEVIEWANIMATION_TYPE, 0);
+        PageViewAnimation.getInstance().setPageViewAnime(type);
 
         setupViews();
         mDeviceProfile.layout(this);
@@ -1407,6 +1415,9 @@ public class Launcher extends Activity
         if (mHotseat != null) {
             mHotseat.setOnLongClickListener(this);
         }
+        mEffectPanel = (EffectContainer) findViewById(R.id.effect_container_layout);
+        mWidgetPager = (WidgetPageContainer) findViewById(R.id.widget_page_container);
+        Log.v(TAG,"mEffectPanel = " + mEffectPanel);
 
         mOverviewPanel = (ViewGroup) findViewById(R.id.overview_panel);
         mWidgetsButton = findViewById(R.id.widget_button);
@@ -1414,11 +1425,16 @@ public class Launcher extends Activity
             @Override
             public void onClick(View arg0) {
                 if (!mWorkspace.isSwitchingState()) {
-                    onClickAddWidgetButton(arg0);
+                    mState = State.WIDGETS_CUSTOM;
+                    if(mWidgetPager.isInSubView()) {
+                        mWidgetPager.onBackPressed();
+                    }
+                    mWidgetPager.loadData();
+                    mStateTransitionAnimation.animationMenuEasy(mOverviewPanel,mWidgetPager,true);
                 }
             }
         });
-        mWidgetsButton.setOnTouchListener(getHapticFeedbackTouchListener());
+        //mWidgetsButton.setOnTouchListener(getHapticFeedbackTouchListener());
 
         View wallpaperButton = findViewById(R.id.wallpaper_button);
         wallpaperButton.setOnClickListener(new OnClickListener() {
@@ -1445,6 +1461,19 @@ public class Launcher extends Activity
         } else {
             settingsButton.setVisibility(View.GONE);
         }
+
+
+        View effectButton = findViewById(R.id.effect_button);
+        effectButton.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                if (!mWorkspace.isSwitchingState()) {
+                    mState = State.EFFECT;
+                    mEffectPanel.loadData();
+                    mStateTransitionAnimation.animationMenuEasy(mOverviewPanel, mEffectPanel,true);
+                }
+            }
+        });
 
         mOverviewPanel.setAlpha(0f);
 
@@ -2448,6 +2477,8 @@ public class Launcher extends Activity
         return super.dispatchKeyEvent(event);
     }
 
+
+
     @Override
     public void onBackPressed() {
         if (mLauncherCallbacks != null && mLauncherCallbacks.handleBackPressed()) {
@@ -2462,9 +2493,31 @@ public class Launcher extends Activity
         if (isAppsViewVisible()) {
             showWorkspace(true);
         } else if (isWidgetsViewVisible())  {
-            showOverviewMode(true);
+            if(mState == State.WIDGETS_CUSTOM) {
+                if(!mWidgetPager.isInSubView()) {
+                    mState = State.WORKSPACE;
+                    mStateTransitionAnimation.animationMenuEasy(mWidgetPager, mOverviewPanel, true);
+                } else {
+                    mWidgetPager.onBackPressed();
+                }
+            }else {
+                showOverviewMode(true);
+            }
         } else if (mWorkspace.isInOverviewMode()) {
-            showWorkspace(true);
+            Log.v(TAG,"onBack mState = " + mState);
+            if(mState == State.EFFECT) {
+                mState = State.WORKSPACE;
+                mStateTransitionAnimation.animationMenuEasy(mEffectPanel,mOverviewPanel,true);
+            } else if(mState == State.WIDGETS_CUSTOM) {
+                if(!mWidgetPager.isInSubView()) {
+                    mState = State.WORKSPACE;
+                    mStateTransitionAnimation.animationMenuEasy(mWidgetPager, mOverviewPanel, true);
+                } else {
+                    mWidgetPager.onBackPressed();
+                }
+            }else {
+                showWorkspace(true);
+            }
         } else if (mWorkspace.getOpenFolder() != null) {
             Folder openFolder = mWorkspace.getOpenFolder();
             if (openFolder.isEditingName()) {
@@ -3319,7 +3372,7 @@ public class Launcher extends Activity
     }
 
     public boolean isWidgetsViewVisible() {
-        return (mState == State.WIDGETS) || (mOnResumeState == State.WIDGETS);
+        return (mState == State.WIDGETS_CUSTOM) || (mOnResumeState == State.WIDGETS);
     }
 
     private void setWorkspaceBackground(int background) {
@@ -3379,6 +3432,8 @@ public class Launcher extends Activity
                 mWorkspace.getState() != Workspace.State.NORMAL;
         if (changed) {
             mWorkspace.setVisibility(View.VISIBLE);
+            mEffectPanel.setVisibility(View.INVISIBLE);
+            mWidgetPager.setVisibility(View.INVISIBLE);
             mStateTransitionAnimation.startAnimationToWorkspace(mState, mWorkspace.getState(),
                     Workspace.State.NORMAL, snapToPage, animated, onCompleteRunnable);
 
@@ -3493,6 +3548,12 @@ public class Launcher extends Activity
         return anim;
     }
 
+    public void enterSpringLoadedDragModeForWidget() {
+        startWorkspaceStateChangeAnimation(Workspace.State.SPRING_LOADED,
+                getCurrentWorkspaceScreen(), true, null);
+        mState = isAppsViewVisible() ? State.APPS_SPRING_LOADED : State.WIDGETS_SPRING_LOADED;
+    }
+
     public void enterSpringLoadedDragMode() {
         if (LOGD) Log.d(TAG, String.format("enterSpringLoadedDragMode [mState=%s", mState.name()));
         if (mState == State.WORKSPACE || mState == State.APPS_SPRING_LOADED ||
@@ -3510,6 +3571,13 @@ public class Launcher extends Activity
     public void exitSpringLoadedDragModeDelayed(final boolean successfulDrop, int delay,
             final Runnable onCompleteRunnable) {
         if (mState != State.APPS_SPRING_LOADED && mState != State.WIDGETS_SPRING_LOADED) return;
+
+        if(mState == State.WIDGETS_SPRING_LOADED) {
+            mState = State.WIDGETS_CUSTOM;
+            Log.v(TAG,"mState = " + mState);
+            startWorkspaceStateChangeAnimation(Workspace.State.OVERVIEW, getCurrentWorkspaceScreen(), true, null);
+            return;
+        }
 
         mHandler.postDelayed(new Runnable() {
             @Override
@@ -4084,7 +4152,6 @@ public class Launcher extends Activity
      * Restores a pending widget.
      *
      * @param appWidgetId The app widget id
-     * @param cellInfo The position on screen where to create the widget.
      */
     private void completeRestoreAppWidget(final int appWidgetId) {
         LauncherAppWidgetHostView view = mWorkspace.getWidgetForAppWidgetId(appWidgetId);
@@ -4383,8 +4450,8 @@ public class Launcher extends Activity
             return;
         }
 
-        if (mWidgetsView != null && model != null) {
-            mWidgetsView.addWidgets(model);
+        if (mWidgetPager != null && model != null) {
+            mWidgetPager.setWidgetsModel(model);
             mWidgetsModel = null;
         }
     }
@@ -4774,6 +4841,90 @@ public class Launcher extends Activity
 
     public static HashMap<String, CustomAppWidget> getCustomAppWidgets() {
         return sCustomAppWidgets;
+    }
+
+    /**
+     * add by steven zhang 20170105
+     * 设置页面切换动画
+     */
+    public void setPageViewAnimaType(int type) {
+        SharedPreferences.Editor editor = mSharedPrefs.edit();
+        editor.putInt(PAGEVIEWANIMATION_TYPE, type);
+        editor.apply();
+    }
+
+    boolean isFullScreen = false;
+
+    public boolean isFullScreen() {
+        return isFullScreen;
+    }
+
+    private boolean hideStatusBar(boolean hide) {
+        boolean isfullscreen;
+        Window win = getWindow();
+        WindowManager.LayoutParams winParams = win.getAttributes();
+        if ((winParams.flags & 1024) == 1024) {
+            isfullscreen = true;
+        } else {
+            isfullscreen = false;
+        }
+        if (hide) {
+            winParams.flags |= 1024;
+        } else {
+            winParams.flags &= -1025;
+        }
+        win.setAttributes(winParams);
+        if (isfullscreen && !hide) {
+            return true;
+        }
+        if (isfullscreen || !hide) {
+            return false;
+        }
+        return true;
+    }
+
+    public void setFullscreen(boolean fullscreen) {
+        Log.i(TAG, "setfullscreen, fullscreen ====" + fullscreen);
+        if (hideStatusBar(fullscreen)) {
+            relayoutChildren(fullscreen);
+        }
+        this.isFullScreen = fullscreen;
+    }
+
+    private void relayoutChildren(boolean fullscreen) {
+        if (this.mDragLayer != null) {
+            relayoutView(fullscreen, this.mWorkspace);
+        }
+    }
+
+    private void relayoutView(boolean on, View v) {
+        if (v != null) {
+            int left = v.getPaddingLeft();
+            int top = v.getPaddingTop();
+            int right = v.getPaddingRight();
+            int bottom = v.getPaddingBottom();
+            boolean custom = false;
+            ViewGroup.LayoutParams lp = v.getLayoutParams();
+            if (lp instanceof DragLayer.LayoutParams) {
+                DragLayer.LayoutParams dragLayerLp = (DragLayer.LayoutParams) lp;
+                if (dragLayerLp.customPosition) {
+                    top = dragLayerLp.y;
+                    custom = true;
+                }
+            }
+            int statusbarHeight = mDeviceProfile.mStatusBarHeight;
+            if (on) {
+                top += statusbarHeight;
+
+            } else {
+                top -= statusbarHeight;
+            }
+            if (custom) {
+                ((DragLayer.LayoutParams) lp).y = top;
+            } else {
+                v.setPadding(left, top, right, bottom);
+            }
+        }
     }
 
     public void dumpLogsToLocalData() {

@@ -142,4 +142,7 @@
     <dimen name="infomation_count_textsize">11dp</dimen>
     <dimen name="infomation_count_padding">4dp</dimen>
     <dimen name="infomation_count_circle_radius">7dp</dimen>
+
+    <dimen name="widget_preview_image_width">80dp</dimen>
+    <dimen name="widget_preview_image_height">80dp</dimen>
 </resources>

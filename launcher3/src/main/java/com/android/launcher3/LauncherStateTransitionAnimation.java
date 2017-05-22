@@ -22,10 +22,13 @@ import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
 import android.animation.PropertyValuesHolder;
 import android.animation.TimeInterpolator;
+import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
 import android.content.res.Resources;
 import android.util.Log;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.AccelerateInterpolator;
 import android.view.animation.DecelerateInterpolator;
 
@@ -191,6 +194,7 @@ public class LauncherStateTransitionAnimation {
                     animated, onCompleteRunnable);
         } else {
             Log.d(TAG, "startAnimationToWorkspace: ");
+            Log.d(TAG, "startAnimationToWorkspace: fromWorkspaceState =="+fromWorkspaceState);
             startAnimationToWorkspaceFromWidgets(fromWorkspaceState, toWorkspaceState, toWorkspacePage,
                     animated, onCompleteRunnable);
         }
@@ -795,5 +799,85 @@ public class LauncherStateTransitionAnimation {
 
     @Thunk void cleanupAnimation() {
         mCurrentAnimation = null;
+    }
+
+    public void animationMenuEasy(final ViewGroup firstView, final ViewGroup secView, final boolean isExpend) {
+        if (isExpend) {
+            ValueAnimator anim = ValueAnimator.ofFloat(new float[]{0.0f, 1.0f});
+            anim.setDuration(240);
+            anim.setInterpolator(new AccelerateDecelerateInterpolator());
+            anim.addListener(new Animator.AnimatorListener() {
+                public void onAnimationStart(Animator animation) {
+                    firstView.setVisibility(View.VISIBLE);
+                    firstView.setAlpha(1.0f);
+                    secView.setVisibility(View.VISIBLE);
+                    secView.setAlpha(0.0f);
+                    secView.setScaleX(0.8f);
+                    //MenuAnimationController.this.mCallback.startAnimationFromMap(isExpend, firstView);
+                }
+
+                public void onAnimationEnd(Animator animation) {
+                    firstView.setAlpha(0.0f);
+                    firstView.setVisibility(View.INVISIBLE);
+                    secView.setAlpha(1.0f);
+                    secView.setVisibility(View.VISIBLE);
+                    secView.setScaleX(1.0f);
+                    //MenuAnimationController.this.mCallback.endAnimationFromMap(isExpend, firstView);
+                }
+
+                public void onAnimationCancel(Animator animation) {
+                }
+
+                public void onAnimationRepeat(Animator animation) {
+                }
+            });
+            anim.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+                public void onAnimationUpdate(ValueAnimator animation) {
+                    float value = ((Float) animation.getAnimatedValue()).floatValue();
+                    firstView.setAlpha(1.0f - value);
+                    secView.setAlpha(value);
+                    secView.setScaleX((0.2f * value) + 0.8f);
+                }
+            });
+            anim.start();
+        } else {
+            ValueAnimator anim = ValueAnimator.ofFloat(new float[]{0.0f, 1.0f});
+            anim.setDuration(240);
+            anim.setInterpolator(new AccelerateDecelerateInterpolator());
+            anim.addListener(new Animator.AnimatorListener() {
+                public void onAnimationStart(Animator animation) {
+                    firstView.setVisibility(View.VISIBLE);
+                    firstView.setAlpha(1.0f);
+                    secView.setVisibility(View.VISIBLE);
+                    secView.setAlpha(0.0f);
+                    secView.setScaleX(0.8f);
+                    //MenuAnimationController.this.mCallback.startAnimationFromMap(isExpend, firstView);
+                }
+
+                public void onAnimationEnd(Animator animation) {
+                    firstView.setAlpha(0.0f);
+                    firstView.setVisibility(View.GONE);
+                    secView.setAlpha(1.0f);
+                    secView.setVisibility(View.VISIBLE);
+                    secView.setScaleX(1.0f);
+                    //MenuAnimationController.this.mCallback.endAnimationFromMap(isExpend, firstView);
+                }
+
+                public void onAnimationCancel(Animator animation) {
+                }
+
+                public void onAnimationRepeat(Animator animation) {
+                }
+            });
+            anim.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+                public void onAnimationUpdate(ValueAnimator animation) {
+                    float value = ((Float) animation.getAnimatedValue()).floatValue();
+                    firstView.setAlpha(1.0f - value);
+                    secView.setAlpha(value);
+                    secView.setScaleX((0.2f * value) + 0.8f);
+                }
+            });
+            anim.start();
+        }
     }
 }

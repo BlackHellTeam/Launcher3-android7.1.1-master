@@ -1678,6 +1678,15 @@ public class Workspace extends PagedView
         updatePageAlphaValues(screenCenter);
         updateStateForCustomContent(screenCenter);
         enableHwLayersOnVisiblePages();
+
+        for (int i = 0; i < getChildCount(); i++) {
+            View v = getPageAt(i);
+            if (v != null) {
+                float scrollProgress = getScrollProgress(screenCenter, v, i);
+                //根据滑动位置设置每个屏幕的动画效果
+                PageViewAnimation.getInstance().pageViewAnime(scrollProgress, i, getChildCount(), mDensity, v);
+            }
+        }
     }
 
     protected void onAttachedToWindow() {

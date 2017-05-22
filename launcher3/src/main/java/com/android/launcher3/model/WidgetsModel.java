@@ -89,6 +89,14 @@ public class WidgetsModel {
         return mWidgetsList.get(mPackageItemInfos.get(pos));
     }
 
+    public List<Object> getSortedWidgets(PackageItemInfo packageItemInfo) {
+        return mWidgetsList.get(packageItemInfo);
+    }
+
+    public List<PackageItemInfo> getPackageItemInfos(){
+        return mPackageItemInfos;
+    }
+
     public ArrayList<Object> getRawList() {
         return mRawList;
     }

@@ -168,7 +168,8 @@
     <string name="wallpaper_button_text">Wallpapers</string>
     <!-- Text for settings button -->
     <string name="settings_button_text">Settings</string>
-
+    <!-- Text for effect button -->
+    <string name="effetc_button_text">EffEct</string>
     <!-- Strings for settings -->
     <!-- Title for Allow Rotation setting. [CHAR LIMIT=50] -->
     <string name="allow_rotation_title">Allow rotation</string>
@@ -264,4 +265,13 @@
     <string name="no_permission_hint">You need to allow access: </string>
     <string name="permission_call_phone">Call Phone</string>
     <string name="permission_access_external_storage">Access External Storage</string>
+
+    <string name="pageanim_normal">"Classic"</string>
+    <string name="pageanim_turntable">"Windmill"</string>
+    <string name="pageanim_layered">"Cascade"</string>
+    <string name="pageanim_rotate">"Rotate"</string>
+    <string name="pageanim_pageturn">"Page"</string>
+    <string name="pageanim_rotatebylefttoppoint">"Card"</string>
+    <string name="pageanim_rotatebycenterpoint">"Compass"</string>
+    <string name="pageanim_blocks">"Box"</string>
 </resources>

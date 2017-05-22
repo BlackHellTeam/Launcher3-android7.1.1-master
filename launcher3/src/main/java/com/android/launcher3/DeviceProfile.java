@@ -97,6 +97,9 @@ public class DeviceProfile {
     private int searchBarSpaceWidthPx;
     private int searchBarSpaceHeightPx;
 
+    //StatusBar
+    public int mStatusBarHeight;
+
     public DeviceProfile(Context context, InvariantDeviceProfile inv,
             Point minSize, Point maxSize,
             int width, int height, boolean isLandscape) {
@@ -143,7 +146,7 @@ public class DeviceProfile {
 
         // AllApps uses the original non-scaled icon size
         allAppsIconSizePx = Utilities.pxFromDp(inv.iconSize, dm);
-
+        mStatusBarHeight = getStatusBarHeight(res);
         // Determine sizes.
         widthPx = width;
         heightPx = height;
@@ -198,8 +201,7 @@ public class DeviceProfile {
         // Search Bar
         searchBarSpaceWidthPx = Math.min(widthPx,
                 res.getDimensionPixelSize(R.dimen.dynamic_grid_search_bar_max_width));
-        searchBarSpaceHeightPx = getSearchBarTopOffset()
-                + res.getDimensionPixelSize(R.dimen.dynamic_grid_search_bar_height);
+        searchBarSpaceHeightPx = mStatusBarHeight;
 
         // Calculate the actual text height
         Paint textPaint = new Paint();
@@ -474,8 +476,9 @@ public class DeviceProfile {
             int totalItemWidth = visibleChildCount * overviewModeBarItemWidthPx;
             int maxWidth = totalItemWidth + (visibleChildCount-1) * overviewModeBarSpacerWidthPx;
 
-            lp.width = Math.min(availableWidthPx, maxWidth);
+            lp.width = Math.max(availableWidthPx, maxWidth);
             lp.height = overviewButtonBarHeight;
+            //lp.width = (int) (availableWidthPx * 0.6);
             overviewMode.setLayoutParams(lp);
 
             if (lp.width > totalItemWidth && visibleChildCount > 1) {
@@ -514,5 +517,16 @@ public class DeviceProfile {
         return isLandscape
                 ? Math.min(widthPx, heightPx)
                 : Math.max(widthPx, heightPx);
+    }
+
+    public int getStatusBarHeight(Resources resource) {
+        int resourceId = resource.getIdentifier("status_bar_height", "dimen", "android");
+        if (resourceId > 0) {
+            mStatusBarHeight = resource.getDimensionPixelSize(resourceId);
+        } else {
+            mStatusBarHeight = (int) (25.0f * resource.getDisplayMetrics().density);
+        }
+
+        return mStatusBarHeight;
     }
 }

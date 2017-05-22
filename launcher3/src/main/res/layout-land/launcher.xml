@@ -57,6 +57,10 @@
             android:id="@+id/overview_panel"
             android:visibility="gone" />
 
+        <include layout="@layout/effect_container_layout"
+            android:id="@+id/effect_container_layout"
+            android:visibility="invisible" />
+
         <include layout="@layout/widgets_view"
             android:id="@+id/widgets_view"
             android:layout_width="match_parent"

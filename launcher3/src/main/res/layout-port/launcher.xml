@@ -54,6 +54,14 @@
             android:id="@+id/overview_panel"
             android:visibility="gone" />
 
+        <include layout="@layout/widget_page_container"
+            android:id="@+id/widget_page_container"
+            android:visibility="gone"/>
+
+        <include layout="@layout/flip_effect_container"
+            android:id="@+id/flip_effect_container"
+            android:visibility="gone" />
+
         <!-- Keep these behind the workspace so that they are not visible when
              we go into AllApps -->
         <include
@@ -72,6 +80,10 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:visibility="invisible" />
+
+        <include layout="@layout/effect_container_layout"
+            android:id="@+id/effect_container_layout"
+            android:visibility="gone" />
 
         <include layout="@layout/all_apps"
             android:id="@+id/apps_view"

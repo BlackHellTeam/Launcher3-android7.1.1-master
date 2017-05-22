@@ -57,6 +57,10 @@
             android:id="@+id/overview_panel"
             android:visibility="gone" />
 
+        <include layout="@layout/flip_effect_container"
+            android:id="@+id/flip_effect_container"
+            android:visibility="gone" />
+
         <!-- Keep these behind the workspace so that they are not visible when
              we go into AllApps -->
         <include android:id="@+id/page_indicator"

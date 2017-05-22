@@ -444,18 +444,19 @@ public class WidgetPreviewLoader {
         return mManager.getBadgeBitmap(info, preview, imageHeight);
     }
 
-    private Bitmap generateShortcutPreview(
+    public Bitmap generateShortcutPreview(
             Launcher launcher, ResolveInfo info, int maxWidth, int maxHeight, Bitmap preview) {
         final Canvas c = new Canvas();
+        int appIconSize = launcher.getDeviceProfile().iconSizePx;
         if (preview == null) {
-            preview = Bitmap.createBitmap(maxWidth, maxHeight, Config.ARGB_8888);
+            preview = Bitmap.createBitmap(appIconSize, appIconSize, Config.ARGB_8888);
             c.setBitmap(preview);
-        } else if (preview.getWidth() != maxWidth || preview.getHeight() != maxHeight) {
+        } /*else if (preview.getWidth() != maxWidth || preview.getHeight() != maxHeight) {
             throw new RuntimeException("Improperly sized bitmap passed as argument");
-        } else {
+        } */else {
             // Reusing bitmap. Clear it.
             c.setBitmap(preview);
-            c.drawColor(0, PorterDuff.Mode.CLEAR);
+            //c.drawColor(0, PorterDuff.Mode.CLEAR);
         }
 
         Drawable icon = mutateOnMainThread(mIconCache.getFullResIcon(info.activityInfo));
@@ -464,21 +465,21 @@ public class WidgetPreviewLoader {
         // Draw a desaturated/scaled version of the icon in the background as a watermark
         ColorMatrix colorMatrix = new ColorMatrix();
         colorMatrix.setSaturation(0);
-        icon.setColorFilter(new ColorMatrixColorFilter(colorMatrix));
-        icon.setAlpha((int) (255 * 0.06f));
+        //icon.setColorFilter(new ColorMatrixColorFilter(colorMatrix));
+        //icon.setAlpha((int) (255 * 0.06f));
 
         Resources res = mContext.getResources();
         int paddingTop = res.getDimensionPixelOffset(R.dimen.shortcut_preview_padding_top);
         int paddingLeft = res.getDimensionPixelOffset(R.dimen.shortcut_preview_padding_left);
         int paddingRight = res.getDimensionPixelOffset(R.dimen.shortcut_preview_padding_right);
         int scaledIconWidth = (maxWidth - paddingLeft - paddingRight);
-        icon.setBounds(paddingLeft, paddingTop,
-                paddingLeft + scaledIconWidth, paddingTop + scaledIconWidth);
-        icon.draw(c);
+        //icon.setBounds(paddingLeft, paddingTop,
+        //       paddingLeft + scaledIconWidth, paddingTop + scaledIconWidth);
+        //icon.draw(c);
 
         // Draw the final icon at top left corner.
         // TODO: use top right for RTL
-        int appIconSize = launcher.getDeviceProfile().iconSizePx;
+
 
         icon.setAlpha(255);
         icon.setColorFilter(null);

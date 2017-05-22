@@ -21,6 +21,7 @@ import android.animation.AnimatorListenerAdapter;
 import android.content.Context;
 import android.graphics.Rect;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.View;
 import android.view.accessibility.AccessibilityManager;
 import android.view.animation.AccelerateInterpolator;
@@ -75,6 +76,8 @@ public class SearchDropTargetBar extends FrameLayout implements DragController.D
     private ButtonDropTarget mDeleteDropTarget;
     private ButtonDropTarget mUninstallDropTarget;
 
+    private Launcher mLauncher;
+
     public SearchDropTargetBar(Context context, AttributeSet attrs) {
         this(context, attrs, 0);
     }
@@ -95,6 +98,7 @@ public class SearchDropTargetBar extends FrameLayout implements DragController.D
         dragController.addDropTarget(mDeleteDropTarget);
         dragController.addDropTarget(mUninstallDropTarget);
 
+        mLauncher = launcher;
         mInfoDropTarget.setLauncher(launcher);
         mDeleteDropTarget.setLauncher(launcher);
         mUninstallDropTarget.setLauncher(launcher);
@@ -207,6 +211,7 @@ public class SearchDropTargetBar extends FrameLayout implements DragController.D
     @Override
     public void onDragStart(DragSource source, Object info, int dragAction) {
         animateToState(State.DROP_TARGET, DEFAULT_DRAG_FADE_DURATION);
+        mLauncher.setFullscreen(true);
     }
 
     /**
@@ -214,7 +219,9 @@ public class SearchDropTargetBar extends FrameLayout implements DragController.D
      * instead of hiding immediately when the drag has ended.
      */
     public void deferOnDragEnd() {
+        Log.v("deferOnDragEnd","deferOnDragEnd");
         mDeferOnDragEnd = true;
+        mLauncher.setFullscreen(false);
     }
 
     @Override
